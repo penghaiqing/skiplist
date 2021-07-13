@@ -1,2 +1,3 @@
 # skiplist
-a skiplist like redis, which is a kv datebase
+
+a skiplist like redis, which is a kv database
