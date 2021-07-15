@@ -1,7 +1,10 @@
 #include<iostream>
 #include<cstring>
 #include<mutex>
+#include<fstream>
+#include<string>
 
+#define FILFE_ADDR "db/k_value.db"
 
 std::mutex  mtx;
 
@@ -40,7 +43,7 @@ Node<K, V>::Node(const K key, const V value, int level){
 
     // 初始化 forward 数组为 0
     memset(this->forward, 0, sizeof(Node<K, V>*) * (level + 1));
-    std::cout << "in Node constructer : Yes" << std::endl;
+    // std::cout << "in Node constructer : Yes" << std::endl;
 }
 
 template<typename K, typename V>
@@ -76,15 +79,15 @@ public:
     bool delete_element(K key);
     int get_randowm_level();
 
-    void write_file();
-    void load_file();
+    void write_data_file();
+    void load_data_file();
 
     int getSize(); // 获得当前的调表 size，即节点个数
 
 
 private:
     void get_key_value_from_string(const std::string& str, std::string* key, std::string * value);
-    bool is_valid_form_string(const std::string& str);
+    bool is_valid_string(const std::string& str);
     int max_level; // 跳表的最大level，整个链表维持一个最大的level值
     int skip_list_level; // 当前跳表节点的 level
 
@@ -93,8 +96,8 @@ private:
     int element_count;  // 调表的当前 节点个数
 
     // 读写 文件的流
-    // std::ofstream file_writer;
-    // std::ifstream file_reader;
+    std::ofstream file_writer;
+    std::ifstream file_reader;
 };
 
 // 构造函数，初始化 header 节点
@@ -111,13 +114,13 @@ SkipList<K, V>::SkipList(int max_level){
 // 析构函数，主要是释放 读写流 和 header 指针的内存
 template<typename K, typename V>
 SkipList<K, V>::~SkipList() {
-    // if(file_writer.is_open()){
-    //     file_writer.close();
-    // }
+    if(file_writer.is_open()){
+        file_writer.close();
+    }
 
-    // if(file_reader.is_open()){
-    //     file_reader.close();
-    // }
+    if(file_reader.is_open()){
+        file_reader.close();
+    }
 
     delete header; // 析构函数中一定释放 new 申请的空间
 }
@@ -245,7 +248,7 @@ bool SkipList<K, V>::delete_element(K key){
 }
 
 template<typename K, typename V>
-int SkipList<K, V>::insert_element(const K key, const V value){
+int SkipList<K, V>::insert_element(K key, V value){
     std::cout << "in insert ";
     mtx.lock();
     Node<K, V> *current = this->header;
@@ -307,4 +310,72 @@ int SkipList<K, V>::get_randowm_level(){
     }
     k = (k < max_level)? k : max_level;
     return k;
+}
+
+// 将数据库中的kv 数据存入到文件中
+template<typename K ,typename V>
+void SkipList<K, V>::write_data_file(){
+    std::cout << "writing file ...." << std::endl;
+    file_writer.open(FILFE_ADDR);
+    if(!file_writer.is_open()){
+        std::cout << "open file failed." << std::endl;
+        return;
+    }
+    Node<K, V>* node = this->header->forward[0];
+    while(node){
+        K key = node->getKey();
+        V value = node->getValue();
+        file_writer << key << ":" << value << "\n";
+        std::cout << "key: " << key << ", value: " << value << std::endl;
+        node = node->forward[0];
+    }
+    file_writer.flush();
+    file_writer.close();
+    return ;
+}
+
+// 加载本地文件中的 kv 数据到 数据库中
+template<typename K ,typename V>
+void SkipList<K, V>::load_data_file(){
+    file_reader.open(FILFE_ADDR);
+    if(!file_reader.is_open()){
+        std::cout << "open file failed." << std::endl;
+        return;
+    }
+    std::cout << "loading file ...." << std::endl;
+    std::string line;
+    std::string* key = new std::string();
+    std::string* value = new std::string();
+    while(getline(file_reader, line)){
+        get_key_value_from_string(line, key, value);
+        if(key->empty() || value->empty())
+            continue;
+        // 修改 key 的类型才能进行插入，由 string 到 K
+        
+        insert_element(*key, *value);
+        std::cout << "key: " << *key << " , value: " << value << std::endl;
+    }
+    file_reader.close();
+}
+
+// 
+template<typename K ,typename V>
+void SkipList<K, V>::get_key_value_from_string(const std::string& str, std::string* key, std::string* value){
+    if(!is_valid_string(str))
+        return;
+    if(str.find(":") == std::string::npos)
+        return;
+    *key = str.substr(0, str.find(":"));
+    *value = str.substr(str.find(":")+1, str.length());
+}
+
+// 
+template<typename K ,typename V>
+bool SkipList<K, V>::is_valid_string(const std::string& str){
+    if(str.length() == 0) return false;
+
+    if(str.find(":") == std::string::npos)
+        return false;
+    return true;
+    
 }
